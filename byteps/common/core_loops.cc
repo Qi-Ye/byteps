@@ -36,26 +36,27 @@ void FinishOrProceed(std::shared_ptr<TensorTableEntry> task) {
     size_t i = task->offset / 4;
     size_t j = (task->offset + task->len) / 4 - 1;
     if (task->device == CPU_DEVICE_ID) {
-      BPS_LOG(DEBUG) << "Sampled key=" << task->key
-                     << " rank=" << BytePSGlobal::GetLocalRank() << " input[0]="
-                     << *(reinterpret_cast<float *>(task->tensor->data()) + i)
-                     << "\tinput[-1]="
-                     << *(reinterpret_cast<float *>(task->tensor->data()) + j)
-                     << "\toutput[0]="
-                     << *(reinterpret_cast<float *>(task->output->data()) + i)
-                     << "\toutput[-1]="
-                     << *(reinterpret_cast<float *>(task->output->data()) + j)
-                     << "\t after stage: " << LogStrings[this_op];
+      BPS_LOG(DEBUG)
+          << "Sampled key=" << task->key
+          << " rank=" << BytePSGlobal::GetLocalRank() << " input[0]="
+          << *(reinterpret_cast<const float *>(task->tensor->data()) + i)
+          << "\tinput[-1]="
+          << *(reinterpret_cast<const float *>(task->tensor->data()) + j)
+          << "\toutput[0]="
+          << *(reinterpret_cast<const float *>(task->output->data()) + i)
+          << "\toutput[-1]="
+          << *(reinterpret_cast<const float *>(task->output->data()) + j)
+          << "\t after stage: " << LogStrings[this_op];
     } else {
       float i0, i1, o0, o1;
-      cudaMemcpy(&i0, reinterpret_cast<float *>(task->tensor->data()) + i, 4,
-                 cudaMemcpyDeviceToHost);
-      cudaMemcpy(&i1, reinterpret_cast<float *>(task->tensor->data()) + j, 4,
-                 cudaMemcpyDeviceToHost);
-      cudaMemcpy(&o0, reinterpret_cast<float *>(task->output->data()) + i, 4,
-                 cudaMemcpyDeviceToHost);
-      cudaMemcpy(&o1, reinterpret_cast<float *>(task->output->data()) + j, 4,
-                 cudaMemcpyDeviceToHost);
+      cudaMemcpy(&i0, reinterpret_cast<const float *>(task->tensor->data()) + i,
+                 4, cudaMemcpyDeviceToHost);
+      cudaMemcpy(&i1, reinterpret_cast<const float *>(task->tensor->data()) + j,
+                 4, cudaMemcpyDeviceToHost);
+      cudaMemcpy(&o0, reinterpret_cast<const float *>(task->output->data()) + i,
+                 4, cudaMemcpyDeviceToHost);
+      cudaMemcpy(&o1, reinterpret_cast<const float *>(task->output->data()) + j,
+                 4, cudaMemcpyDeviceToHost);
       BPS_LOG(DEBUG) << "Sampled key=" << task->key
                      << " rank=" << BytePSGlobal::GetLocalRank()
                      << " input[0]=" << i0 << "\tinput[-1]=" << i1
@@ -146,9 +147,9 @@ inline void PostNcclCalls(
   auto len = task->len;
   auto offset = task->offset;
   auto unit_len = tensor->size() / tensor->shape().num_elements();
-  auto p = reinterpret_cast<char *>(tensor->data()) + offset;
+  auto p = (char *)(tensor->data()) + offset;
   if (task->device == CPU_DEVICE_ID) {
-    p = reinterpret_cast<char *>(task->gpu_ptr) + offset;
+    p = (char *)(task->gpu_ptr) + offset;
   }
 
   auto nccl_dtype = getNcclDataType(tensor->dtype());
@@ -171,7 +172,7 @@ inline void PostNcclCalls(
 
   if (this_op == REDUCE) {
     // We reduce to task->output except that it is a CPU tensor
-    auto out_p = reinterpret_cast<char *>(task->output->data()) + offset;
+    auto out_p = (char *)(task->output->data()) + offset;
     if (task->device == CPU_DEVICE_ID && task->tensor == task->output) {
       out_p = p;
     }
@@ -333,9 +334,9 @@ bool RunCopyDevice2HostLoopOnce() {
 
     auto len = task->len;
     auto offset = task->offset;
-    auto p = reinterpret_cast<char *>(tensor->data()) + offset;
+    auto p = reinterpret_cast<const char *>(tensor->data()) + offset;
     if (task->device == CPU_DEVICE_ID) {
-      p = reinterpret_cast<char *>(task->gpu_ptr) + offset;
+      p = reinterpret_cast<const char *>(task->gpu_ptr) + offset;
     }
     auto unit_len = tensor->size() / tensor->shape().num_elements();
     char *cpubuff;
@@ -518,9 +519,9 @@ void CopyHost2Device(std::shared_ptr<byteps::common::TensorTableEntry> task) {
   BPS_CHECK(cpubuff) << task->tensor_name
                      << ": CPU buffer not initialized, size=" << len;
 
-  auto gpu_addr = reinterpret_cast<char *>(tensor->data()) + offset;
+  auto gpu_addr = (char *)(tensor->data()) + offset;
   if (task->device == CPU_DEVICE_ID) {
-    gpu_addr = reinterpret_cast<char *>(task->gpu_ptr) + offset;
+    gpu_addr = (char *)(task->gpu_ptr) + offset;
   }
 
   auto unit_len = tensor->size() / tensor->shape().num_elements();
